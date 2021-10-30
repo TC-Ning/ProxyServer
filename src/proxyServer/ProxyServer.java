@@ -75,10 +75,6 @@ public class ProxyServer
 				}
 			}
 		}
-		// if (!url.contains("http"))
-		// {
-		// 	url = host + url;
-		// }
 		Map<String, String> ret = new HashMap<>();
 		ret.put("method", method);
 		ret.put("url", url);
@@ -131,7 +127,7 @@ public class ProxyServer
 		Set<String> hostSet=redirectHost.keySet();
 		for(String s : hostSet)
 		{
-			if(s.equals(host))
+			if(host.equals(s))
 			{
 				String newHost=redirectHost.get(host);
 				System.out.println("原主机 "+host+" 被重定向到"+newHost);
@@ -162,7 +158,7 @@ public class ProxyServer
 		Set<String> urlSet=redirectUrl.keySet();
 		for(String s : urlSet)
 		{
-			if(s.equals(url))
+			if(url.equals(s))
 			{
 				String newUrl=redirectUrl.get(url);
 				System.out.println("原url "+url+" 被重定向到"+newUrl);
@@ -173,45 +169,8 @@ public class ProxyServer
 	}
 
 	/**
-	 * 
-	 * @param header
-	 * @return
-	 */
-	public String rebuildHttpHead(String header,String newHost,String newUrl)
-	{
-		StringBuilder sb=new StringBuilder();
-		String []lines=header.split("\\n");
-		String[] temp=null;
-		for(String s: lines)
-		{
-			if(s.contains("GET") || s.contains("POST") || s.contains("CONNECT"))
-			{
-				temp = s.split("\\s");  // 按空格分割
-                sb.append(temp[0] + " " + newUrl + " " + temp[2] + "\n");
-			}
-			else if(s.contains("Host: "))
-			{
-				sb.append("Host: "+newHost+"\n");
-			}
-			else if(s.contains("Referer: "))
-			{
-				sb.append("Referer: "+newUrl+"\n");
-			}
-			else if (s.contains("Accept: ")) 
-			{
-                sb.append("Accept: " + "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8" + "\n");
-            }
-			else
-			{
-				sb.append(s+"\n");
-			}
-		}
-		return sb.toString();
-	}
-
-	/**
-	 * 
-	 * @param localPort
+	 * 启动代理服务器
+	 * @param localPort	//代理服务器的监听端口
 	 */
 	public void start(int localPort) throws IOException
 	{
@@ -219,9 +178,12 @@ public class ProxyServer
 		System.out.println("代理服务器正在运行，监听端口 "+localPort);
 		while(true)
 		{
+			//接收来自客户端的连接
 			Socket socket=server.accept();
 			String clientIP=socket.getInetAddress().getHostAddress();
 			System.out.println("与主机 "+clientIP+" 连接成功");
+
+			//判断客户端IP是否被禁止访问外网
 			if(forbidUser.contains(clientIP))
 			{
 				System.out.println("用户"+clientIP+"被禁止访问外部网站");
@@ -231,6 +193,8 @@ public class ProxyServer
 				socket.close();
 				continue;
 			}
+
+			//创建一个新线程，处理来自客户端和远程服务器的报文
 			new Thread(new Runnable() {
 				@Override
 				public void run()
@@ -240,6 +204,8 @@ public class ProxyServer
 						BufferedReader br=new BufferedReader(
 							new InputStreamReader(socket.getInputStream()));
 						String line=br.readLine();
+
+						//存储来自客户端的http报文头部
 						StringBuilder headerBuilder=new StringBuilder();
 						while(line!=null && !line.equals(""))
 						{
@@ -247,12 +213,17 @@ public class ProxyServer
 							line=br.readLine();
 						}
 						String header=headerBuilder.toString();
-						System.out.println("\n"+header+"\n");
+						System.out.println("来自浏览器的报文：");
+						System.out.println(header+"\n");
+
+						//解析http报文首部，获得method, url, host等信息
 						Map<String,String> headInfo=parseHttpHeader(header);
 						String method=headInfo.getOrDefault("method","GET");
 						String url=headInfo.get("url");
 						String host=headInfo.get("host");
 						int port=Integer.parseInt(headInfo.getOrDefault("port","80"));
+
+						//判断要访问的网站是否被禁止
 						if(url!=null && forbidSite.contains(url))
 						{
 							System.out.println("访问了禁止访问的网站："+url);
@@ -262,15 +233,25 @@ public class ProxyServer
 							socket.close();
 							return;
 						}
-						String tempHost=redirectHost(host);
-						if(tempHost!=null)
+
+						//获取重定向后的主机名
+						//String tempHost=redirectHost(host);
+						String tempUrl=redirectUrl(url);
+						//如果需要重定向，将主机名和url更新为重定向后的
+						// if(tempHost!=null)
+						// {
+						// 	host=tempHost;
+						// 	url=redirectUrl(url);
+						// }
+						if(tempUrl!=null)
 						{
-							host=tempHost;
-							url=redirectUrl(url);
-							//header=rebuildHttpHead(header, host, url);
+							url=tempUrl;
+							host=redirectHost(host);
 						}
 						File cacheFile=new File(url.replace('/', '_').replace(':', '+')+".cache");
 						boolean useCache=false;
+
+						//默认的最后修改时间，若缓存文件不存在，用这个时间构造请求报文
 						String lastModified="Thu, 01 Jul 1970 20:00:00 GMT";
 						if(cacheFile.exists() && cacheFile.length()!=0)
 						{
@@ -286,21 +267,12 @@ public class ProxyServer
 							System.out.println("缓存最后修改时间："+cal.getTime());
 						}
 						Socket remoteServer=new Socket(host,port);
+						//向远程服务器的输出流
 						BufferedWriter writer=new BufferedWriter(
 							new OutputStreamWriter(remoteServer.getOutputStream()));
+						//重构请求报文
 						StringBuffer request=new StringBuffer();
-						request//.append(method).append(" ").append(url)
-//                        .append(" HTTP/1.1").append("\n")
-//                        .append("HOST: ").append(host).append("\n")
-//                        .append("Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8\n")
-//                        .append("Accept-Encoding:gzip, deflate, sdch\n")
-//                        .append("Accept-Language:zh-CN,zh;q=0.8\n")
-//                        .append("If-Modified-Since: ").append(lastModified).append("\n")
-//                        //.append("User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0.2 Safari/605.1.15\n")
-//                        .append("Encoding:UTF-8\n")
-//                        .append("Connection:keep-alive" + "\n")
-//                        .append("\n");
-						 .append(method+" "+url+" HTTP/1.1\n")
+						request.append(method+" "+url+" HTTP/1.1\n")
 						 	.append("HOST: "+host+"\n")
 						 	.append("Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8\n")
 						 	.append("Accept-Encoding:gzip, deflate, sdch\n")
@@ -311,19 +283,21 @@ public class ProxyServer
 						writer.write(request.toString());
 						System.out.println(request.toString());
 						writer.flush();
-						
+	
+						//来自远程服务器的输入流
+						BufferedInputStream remoteInput=new BufferedInputStream(remoteServer.getInputStream());
 						//向浏览器的输出流
 						OutputStream outToBrowser=socket.getOutputStream();
 						//向缓存文件的输出流
 						FileOutputStream fileOutputStream=new FileOutputStream(
 							new File(url.replace('/', '_').replace(':', '+')+".cache"));
-	
-						//来自远程服务器的输入流
-						BufferedInputStream remoteInput=new BufferedInputStream(remoteServer.getInputStream());
-						byte[] tempBytes=new byte[20];
-						int bytes=remoteInput.read(tempBytes);
-						String recv=new String(tempBytes,0,bytes);
+						
+						//读取远程服务器响应报文的开头
+						byte[] tempHeader=new byte[20];
+						int bytes=remoteInput.read(tempHeader);
+						String recv=new String(tempHeader,0,bytes);
 						System.out.println(recv);
+						
 						//判断响应报文里是否包含304，若包含，标记为使用缓存
 						if(recv.contains("304"))
 						{
@@ -333,9 +307,11 @@ public class ProxyServer
 						else
 						{
 							System.out.println(url+" 服务器端内容发生更新，不使用缓存");
-							outToBrowser.write(tempBytes);
-							fileOutputStream.write(tempBytes);
+							//把读取的开头发给浏览器并写入缓存
+							outToBrowser.write(tempHeader);
+							fileOutputStream.write(tempHeader);
 						}
+						//从缓存中读取数据发给浏览器
 						if(useCache)
 						{
 							System.out.println(url+" 正在使用缓存加载");
@@ -352,10 +328,11 @@ public class ProxyServer
 									break;
 								}
 								outToBrowser.write(buffer);
+								outToBrowser.flush();
 							}
 							outToBrowser.flush();
 						}
-						//把来自服务器的输入流读完，
+						//把来自服务器的输入流读完，如果未使用缓存，将其发给浏览器并写入缓存
 						int bufferLength=1;
 						byte[] buffer=new byte[bufferLength];
 						int count=0;
@@ -371,6 +348,8 @@ public class ProxyServer
 							{
 								outToBrowser.write(buffer);
 								fileOutputStream.write(buffer);
+								fileOutputStream.flush();
+								outToBrowser.flush();
 							}
 						}
 						fileOutputStream.flush();
@@ -390,19 +369,27 @@ public class ProxyServer
 		 
 	}
 
+	//http://www.ipuhui.com/
+	//http://cloud.57class.net/schoolcloud-oauthserver/login
+	//http://mp.miaopai.com/login
+	//http://jwts.hit.edu.cn/loginNOCAS
+	//http://jwes.hit.edu.cn/
 	public static void main(String[] args) throws IOException 
 	{
-		// TODO Auto-generated method stub
 		ProxyServer proxyServer=new ProxyServer();
 //		proxyServer.addForbidUser("127.0.0.1");
+
 //		proxyServer.addForbidSite("jwes.hit.edu.cn");
 //		proxyServer.addForbidSite("jwes.hit.edu.cn/");
 //		proxyServer.addForbidSite("http://jwes.hit.edu.cn");
 //		proxyServer.addForbidSite("http://jwes.hit.edu.cn/");
+//
 //		proxyServer.addRedirectHost("jwts.hit.edu.cn", "www.ipuhui.com");
-//		proxyServer.addRedirectUrl("http://jwts.hit.edu.cn/", "http://www.ipuhui.com/");
-//		proxyServer.addRedirectUrl("http://jwts.hit.edu.cn", "http://www.ipuhui.com/");
-		proxyServer.start(808);
+//		proxyServer.addRedirectUrl("http://jwts.hit.edu.cn/loginNOCAS/", "http://www.ipuhui.com/");
+//		proxyServer.addRedirectUrl("http://jwts.hit.edu.cn/loginNOCAS", "http://www.ipuhui.com/");
+//		
+
+		proxyServer.start(8080);
 	}
 
 }
