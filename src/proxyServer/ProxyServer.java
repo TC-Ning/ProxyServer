@@ -235,14 +235,8 @@ public class ProxyServer
 						}
 
 						//获取重定向后的主机名
-						//String tempHost=redirectHost(host);
 						String tempUrl=redirectUrl(url);
 						//如果需要重定向，将主机名和url更新为重定向后的
-						// if(tempHost!=null)
-						// {
-						// 	host=tempHost;
-						// 	url=redirectUrl(url);
-						// }
 						if(tempUrl!=null)
 						{
 							url=tempUrl;
@@ -359,7 +353,6 @@ public class ProxyServer
 						socket.close();
 					} catch (Exception e)
 					{
-						// TODO: handle exception
 					}
 				}
 			
@@ -369,25 +362,22 @@ public class ProxyServer
 		 
 	}
 
-	//http://www.ipuhui.com/
-	//http://cloud.57class.net/schoolcloud-oauthserver/login
-	//http://mp.miaopai.com/login
-	//http://jwts.hit.edu.cn/loginNOCAS
-	//http://jwes.hit.edu.cn/
 	public static void main(String[] args) throws IOException 
 	{
 		ProxyServer proxyServer=new ProxyServer();
-//		proxyServer.addForbidUser("127.0.0.1");
+		//以下选项用于用户过滤
+		// proxyServer.addForbidUser("127.0.0.1");
 
-//		proxyServer.addForbidSite("jwes.hit.edu.cn");
-//		proxyServer.addForbidSite("jwes.hit.edu.cn/");
-//		proxyServer.addForbidSite("http://jwes.hit.edu.cn");
-//		proxyServer.addForbidSite("http://jwes.hit.edu.cn/");
-//
-//		proxyServer.addRedirectHost("jwts.hit.edu.cn", "www.ipuhui.com");
-//		proxyServer.addRedirectUrl("http://jwts.hit.edu.cn/loginNOCAS/", "http://www.ipuhui.com/");
-//		proxyServer.addRedirectUrl("http://jwts.hit.edu.cn/loginNOCAS", "http://www.ipuhui.com/");
-//		
+		//以下选项用于网站过滤
+		// proxyServer.addForbidSite("jwes.hit.edu.cn");
+		// proxyServer.addForbidSite("jwes.hit.edu.cn/");
+		// proxyServer.addForbidSite("http://jwes.hit.edu.cn");
+		// proxyServer.addForbidSite("http://jwes.hit.edu.cn/");
+
+		//以下选项用于重定向
+// 		proxyServer.addRedirectHost("jwts.hit.edu.cn", "www.ipuhui.com");
+// 		proxyServer.addRedirectUrl("http://jwts.hit.edu.cn/loginNOCAS/", "http://www.ipuhui.com/");
+// 		proxyServer.addRedirectUrl("http://jwts.hit.edu.cn/loginNOCAS", "http://www.ipuhui.com/");
 
 		proxyServer.start(8080);
 	}
